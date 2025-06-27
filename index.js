@@ -37,6 +37,43 @@ app.post("/shorturls", async (req, res) => {
     });
 });
 
+app.get("/:shortcode", (req, res) => {
+    const { shortcode } = req.params;
+    const entry = urlsMap.get(shortcode);
+    if (!entry) {
+        return res.status(404).send("Short URL not found.");
+    }
+    if (Date.now() > entry.expiryTime) {
+        delete urlsMap.get(shortcode);
+        return res.status(410).send("Short URL expired.");
+    }
+    const click = {
+        timestamp: new Date().toISOString(),
+        referrer: req.get("referer") || null,
+        location:
+            req.headers["x-forwarded-for"] ||
+            req.connection.remoteAddress ||
+            null,
+    };
+    entry.clicks.push(click);
+    return res.redirect(entry.url);
+});
+
+app.get("/shorturls/:shortcode", (req, res) => {
+    const { shortcode } = req.params;
+    const entry = urlsMap.get(shortcode);
+    if (!entry) {
+        return res.status(404).json({ error: "Short URL not found." });
+    }
+    return res.json({
+        shortcode,
+        originalUrl: entry.url,
+        createdAt: entry.createdAt,
+        expiresAt: new Date(entry.expiryTime).toISOString(),
+        totalClicks: entry.clicks.length,
+        clicks: entry.clicks,
+    });
+});
 
 app.get("/", (req, res) => {
     res.send("Hello there");
